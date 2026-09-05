@@ -13,11 +13,11 @@ jobs:
 
     steps:
 
-      - name: Baixar código do repositório
+      - name: Baixar código
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -25,23 +25,30 @@ jobs:
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Instalar Android SDK 35
+      - name: Instalar SDK Android
         run: |
+          yes | sdkmanager --licenses || true
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
 
-      - name: Configurar Gradle 8.7
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Compilar APK Debug
-        run: gradle assembleDebug --no-daemon
+      - name: Verificar Gradle
+        run: |
+          gradle --version
+
+      - name: Compilar APK
+        run: |
+          gradle clean assembleDebug --stacktrace --no-daemon
 
       - name: Verificar APK
         run: |
-          ls -lh app/build/outputs/apk/debug/
+          echo "Arquivos gerados:"
+          find app/build/outputs -type f -maxdepth 5
           test -f app/build/outputs/apk/debug/app-debug.apk
 
       - name: Disponibilizar APK
