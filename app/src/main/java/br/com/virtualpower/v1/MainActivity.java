@@ -12,7 +12,6 @@ import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
-import android.bluetooth.BluetoothStatusCodes;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -33,21 +32,43 @@ import android.widget.Toast;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class MainActivity extends Activity {
 
     private static final int REQUEST_BLUETOOTH = 1001;
 
+    /*
+     * Bluetooth SIG
+     *
+     * Cycling Power Service
+     * 0x1818
+     */
     private static final UUID CYCLING_POWER_SERVICE_UUID =
-            UUID.fromString("00001818-0000-1000-8000-00805F9B34FB");
+            UUID.fromString(
+                    "00001818-0000-1000-8000-00805F9B34FB"
+            );
 
+    /*
+     * Cycling Power Measurement
+     * 0x2A63
+     */
     private static final UUID CYCLING_POWER_MEASUREMENT_UUID =
-            UUID.fromString("00002A63-0000-1000-8000-00805F9B34FB");
+            UUID.fromString(
+                    "00002A63-0000-1000-8000-00805F9B34FB"
+            );
 
+    /*
+     * Client Characteristic Configuration Descriptor
+     * 0x2902
+     */
     private static final UUID CCCD_UUID =
-            UUID.fromString("00002902-0000-1000-8000-00805F9B34FB");
+            UUID.fromString(
+                    "00002902-0000-1000-8000-00805F9B34FB"
+            );
 
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
@@ -55,8 +76,20 @@ public class MainActivity extends Activity {
     private BluetoothGattServer gattServer;
 
     private BluetoothGattCharacteristic powerCharacteristic;
+    private BluetoothGattDescriptor cccdDescriptor;
 
-    private final List<BluetoothDevice> connectedDevices = new ArrayList<>();
+    /*
+     * Dispositivos atualmente conectados.
+     */
+    private final List<BluetoothDevice> connectedDevices =
+            new ArrayList<>();
+
+    /*
+     * Dispositivos que efetivamente habilitaram
+     * notificações da Cycling Power Measurement.
+     */
+    private final Set<String> notificationDevices =
+            new HashSet<>();
 
     private TextView statusText;
     private TextView connectionText;
@@ -68,63 +101,119 @@ public class MainActivity extends Activity {
     private Button startButton;
     private Button stopButton;
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
 
-    private int currentPower = 200;
+    /*
+     * Potência inicial.
+     */
+    private int currentPower = 100;
 
     private boolean running = false;
 
-    private final Runnable powerRunnable = new Runnable() {
+    private final Runnable powerRunnable =
+            new Runnable() {
 
-        @Override
-        public void run() {
+                @Override
+                public void run() {
 
-            if (!running) {
-                return;
-            }
+                    if (!running) {
+                        return;
+                    }
 
-            sendPowerMeasurement();
+                    sendPowerMeasurement();
 
-            handler.postDelayed(this, 1000);
-        }
-    };
+                    handler.postDelayed(
+                            this,
+                            1000
+                    );
+                }
+            };
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(
+            Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
 
-        setContentView(R.layout.activity_main);
+        setContentView(
+                R.layout.activity_main
+        );
 
-        statusText = findViewById(R.id.statusText);
-        connectionText = findViewById(R.id.connectionText);
-        powerText = findViewById(R.id.powerText);
+        statusText =
+                findViewById(R.id.statusText);
 
-        powerInput = findViewById(R.id.powerInput);
+        connectionText =
+                findViewById(R.id.connectionText);
 
-        sendButton = findViewById(R.id.sendButton);
-        startButton = findViewById(R.id.startButton);
-        stopButton = findViewById(R.id.stopButton);
+        powerText =
+                findViewById(R.id.powerText);
+
+        powerInput =
+                findViewById(R.id.powerInput);
+
+        sendButton =
+                findViewById(R.id.sendButton);
+
+        startButton =
+                findViewById(R.id.startButton);
+
+        stopButton =
+                findViewById(R.id.stopButton);
 
         bluetoothManager =
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+                (BluetoothManager)
+                        getSystemService(
+                                Context.BLUETOOTH_SERVICE
+                        );
 
-        bluetoothAdapter = bluetoothManager.getAdapter();
+        bluetoothAdapter =
+                bluetoothManager.getAdapter();
 
-        sendButton.setOnClickListener(v -> applyPower());
+        sendButton.setOnClickListener(
+                v -> applyPower()
+        );
 
-        startButton.setOnClickListener(v -> startBle());
+        startButton.setOnClickListener(
+                v -> startBle()
+        );
 
-        stopButton.setOnClickListener(v -> stopBle());
+        stopButton.setOnClickListener(
+                v -> stopBle()
+        );
 
-        statusText.setText("Pronto para iniciar.");
+        powerInput.setText(
+                String.valueOf(currentPower)
+        );
+
+        powerText.setText(
+                "Potência: "
+                        + currentPower
+                        + " W"
+        );
+
+        statusText.setText(
+                "V2 pronta."
+        );
+
+        stopButton.setEnabled(false);
 
         updateConnectionText();
     }
 
+    /*
+     * ============================================================
+     * POTÊNCIA
+     * ============================================================
+     */
+
     private void applyPower() {
 
-        String value = powerInput.getText().toString().trim();
+        String value =
+                powerInput
+                        .getText()
+                        .toString()
+                        .trim();
 
         if (value.isEmpty()) {
 
@@ -139,9 +228,11 @@ public class MainActivity extends Activity {
 
         try {
 
-            int watts = Integer.parseInt(value);
+            int watts =
+                    Integer.parseInt(value);
 
-            if (watts < -32768 || watts > 32767) {
+            if (watts < -32768 ||
+                    watts > 32767) {
 
                 Toast.makeText(
                         this,
@@ -155,9 +246,15 @@ public class MainActivity extends Activity {
             currentPower = watts;
 
             powerText.setText(
-                    "Potência transmitida: " + currentPower + " W"
+                    "Potência: "
+                            + currentPower
+                            + " W"
             );
 
+            /*
+             * Se o Bryton já estiver conectado,
+             * envia imediatamente o novo valor.
+             */
             if (running) {
                 sendPowerMeasurement();
             }
@@ -172,9 +269,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * PERMISSÕES
+     * ============================================================
+     */
+
     private boolean hasBluetoothPermissions() {
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.S) {
+
             return true;
         }
 
@@ -189,7 +294,8 @@ public class MainActivity extends Activity {
 
     private void requestBluetoothPermissions() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.S) {
 
             requestPermissions(
                     new String[]{
@@ -201,6 +307,12 @@ public class MainActivity extends Activity {
         }
     }
 
+    /*
+     * ============================================================
+     * INICIALIZAÇÃO BLE
+     * ============================================================
+     */
+
     private void startBle() {
 
         if (!hasBluetoothPermissions()) {
@@ -210,11 +322,13 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (!getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_BLUETOOTH_LE)) {
+        if (!getPackageManager()
+                .hasSystemFeature(
+                        PackageManager.FEATURE_BLUETOOTH_LE
+                )) {
 
             statusText.setText(
-                    "Este aparelho não possui Bluetooth LE."
+                    "Bluetooth LE não disponível."
             );
 
             return;
@@ -232,41 +346,56 @@ public class MainActivity extends Activity {
         if (!bluetoothAdapter.isEnabled()) {
 
             statusText.setText(
-                    "Ative o Bluetooth do celular."
+                    "Ative o Bluetooth."
             );
 
             return;
         }
 
-        advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+        advertiser =
+                bluetoothAdapter
+                        .getBluetoothLeAdvertiser();
 
         if (advertiser == null) {
 
             statusText.setText(
-                    "Este celular não suporta BLE Peripheral/Advertising."
+                    "Este celular não suporta BLE Peripheral."
             );
 
             return;
         }
 
+        statusText.setText(
+                "Abrindo GATT Server..."
+        );
+
         openGattServer();
     }
+
+    /*
+     * ============================================================
+     * GATT SERVER
+     * ============================================================
+     */
 
     private void openGattServer() {
 
         if (gattServer != null) {
-            stopBle();
+            closeGattServer();
         }
 
-        gattServer = bluetoothManager.openGattServer(
-                this,
-                gattServerCallback
-        );
+        notificationDevices.clear();
+
+        gattServer =
+                bluetoothManager.openGattServer(
+                        this,
+                        gattServerCallback
+                );
 
         if (gattServer == null) {
 
             statusText.setText(
-                    "Não foi possível abrir o GATT Server."
+                    "Falha ao abrir GATT Server."
             );
 
             return;
@@ -278,6 +407,11 @@ public class MainActivity extends Activity {
                         BluetoothGattService.SERVICE_TYPE_PRIMARY
                 );
 
+        /*
+         * Cycling Power Measurement
+         *
+         * READ + NOTIFY
+         */
         powerCharacteristic =
                 new BluetoothGattCharacteristic(
                         CYCLING_POWER_MEASUREMENT_UUID,
@@ -289,7 +423,10 @@ public class MainActivity extends Activity {
                         BluetoothGattCharacteristic.PERMISSION_READ
                 );
 
-        BluetoothGattDescriptor cccd =
+        /*
+         * CCCD
+         */
+        cccdDescriptor =
                 new BluetoothGattDescriptor(
                         CCCD_UUID,
 
@@ -298,27 +435,49 @@ public class MainActivity extends Activity {
                                 BluetoothGattDescriptor.PERMISSION_WRITE
                 );
 
-        powerCharacteristic.addDescriptor(cccd);
-
-        service.addCharacteristic(powerCharacteristic);
-
-        boolean added = gattServer.addService(service);
-
-        if (!added) {
-
-            statusText.setText(
-                    "Falha ao adicionar o serviço BLE."
-            );
-
-            return;
-        }
-
-        statusText.setText(
-                "GATT Server iniciado. Aguardando Bryton..."
+        /*
+         * Valor inicial do CCCD:
+         * notificações desligadas.
+         */
+        cccdDescriptor.setValue(
+                BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
         );
 
-        startAdvertising();
+        powerCharacteristic.addDescriptor(
+                cccdDescriptor
+        );
+
+        service.addCharacteristic(
+                powerCharacteristic
+        );
+
+        statusText.setText(
+                "Adicionando Cycling Power Service..."
+        );
+
+        /*
+         * IMPORTANTE:
+         *
+         * Não iniciamos o advertising aqui.
+         *
+         * Vamos esperar onServiceAdded().
+         */
+        boolean result =
+                gattServer.addService(service);
+
+        if (!result) {
+
+            statusText.setText(
+                    "Falha ao solicitar criação do serviço."
+            );
+        }
     }
+
+    /*
+     * ============================================================
+     * ADVERTISING
+     * ============================================================
+     */
 
     private void startAdvertising() {
 
@@ -326,18 +485,37 @@ public class MainActivity extends Activity {
             return;
         }
 
+        /*
+         * Garante que um advertising anterior
+         * não permaneça ativo.
+         */
+        try {
+
+            advertiser.stopAdvertising(
+                    advertiseCallback
+            );
+
+        } catch (Exception ignored) {
+        }
+
         AdvertiseSettings settings =
                 new AdvertiseSettings.Builder()
                         .setAdvertiseMode(
-                                AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
+                                AdvertiseSettings
+                                        .ADVERTISE_MODE_LOW_LATENCY
                         )
                         .setTxPowerLevel(
-                                AdvertiseSettings.ADVERTISE_TX_POWER_HIGH
+                                AdvertiseSettings
+                                        .ADVERTISE_TX_POWER_HIGH
                         )
                         .setConnectable(true)
                         .setTimeout(0)
                         .build();
 
+        /*
+         * Colocamos o UUID do Cycling Power Service
+         * no advertising.
+         */
         AdvertiseData data =
                 new AdvertiseData.Builder()
                         .setIncludeDeviceName(false)
@@ -348,12 +526,22 @@ public class MainActivity extends Activity {
                         )
                         .build();
 
+        statusText.setText(
+                "Iniciando advertising..."
+        );
+
         advertiser.startAdvertising(
                 settings,
                 data,
                 advertiseCallback
         );
     }
+
+    /*
+     * ============================================================
+     * CALLBACK ADVERTISING
+     * ============================================================
+     */
 
     private final AdvertiseCallback advertiseCallback =
             new AdvertiseCallback() {
@@ -368,28 +556,46 @@ public class MainActivity extends Activity {
                     stopButton.setEnabled(true);
 
                     statusText.setText(
-                            "BLE Power Meter ativo. Procurável pelo Bryton."
+                            "Virtual Power V2 ativo."
                     );
 
-                    handler.removeCallbacks(powerRunnable);
+                    handler.removeCallbacks(
+                            powerRunnable
+                    );
 
-                    handler.post(powerRunnable);
+                    handler.post(
+                            powerRunnable
+                    );
                 }
 
                 @Override
-                public void onStartFailure(int errorCode) {
+                public void onStartFailure(
+                        int errorCode) {
 
                     running = false;
 
                     statusText.setText(
-                            "Falha no Advertising BLE. Código: "
+                            "Falha no advertising. Código: "
                                     + errorCode
                     );
                 }
             };
 
-    private final BluetoothGattServerCallback gattServerCallback =
+    /*
+     * ============================================================
+     * GATT CALLBACK
+     * ============================================================
+     */
+
+    private final BluetoothGattServerCallback
+            gattServerCallback =
             new BluetoothGattServerCallback() {
+
+                /*
+                 * ------------------------------------------------
+                 * SERVIÇO ADICIONADO
+                 * ------------------------------------------------
+                 */
 
                 @Override
                 public void onServiceAdded(
@@ -398,21 +604,34 @@ public class MainActivity extends Activity {
 
                     runOnUiThread(() -> {
 
-                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                        if (status ==
+                                BluetoothGatt.GATT_SUCCESS) {
 
                             statusText.setText(
-                                    "Serviço Cycling Power criado."
+                                    "Cycling Power Service criado."
                             );
+
+                            /*
+                             * SOMENTE AGORA iniciamos
+                             * o advertising.
+                             */
+                            startAdvertising();
 
                         } else {
 
                             statusText.setText(
-                                    "Erro ao criar serviço. Código: "
+                                    "Erro GATT ao criar serviço: "
                                             + status
                             );
                         }
                     });
                 }
+
+                /*
+                 * ------------------------------------------------
+                 * CONEXÃO
+                 * ------------------------------------------------
+                 */
 
                 @Override
                 public void onConnectionStateChange(
@@ -420,23 +639,54 @@ public class MainActivity extends Activity {
                         int status,
                         int newState) {
 
-                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    if (newState ==
+                            BluetoothProfile.STATE_CONNECTED) {
 
-                        if (!connectedDevices.contains(device)) {
-                            connectedDevices.add(device);
+                        if (!connectedDevices
+                                .contains(device)) {
+
+                            connectedDevices.add(
+                                    device
+                            );
                         }
+
+                        runOnUiThread(() ->
+                                statusText.setText(
+                                        "Bryton/dispositivo conectado."
+                                )
+                        );
 
                     } else if (
                             newState ==
-                                    BluetoothProfile.STATE_DISCONNECTED) {
+                                    BluetoothProfile
+                                            .STATE_DISCONNECTED) {
 
-                        connectedDevices.remove(device);
+                        connectedDevices.remove(
+                                device
+                        );
+
+                        notificationDevices.remove(
+                                device.getAddress()
+                        );
+
+                        runOnUiThread(() ->
+                                statusText.setText(
+                                        "Dispositivo desconectado."
+                                )
+                        );
                     }
 
                     runOnUiThread(
-                            MainActivity.this::updateConnectionText
+                            MainActivity.this
+                                    ::updateConnectionText
                     );
                 }
+
+                /*
+                 * ------------------------------------------------
+                 * LEITURA DA POWER MEASUREMENT
+                 * ------------------------------------------------
+                 */
 
                 @Override
                 public void onCharacteristicReadRequest(
@@ -445,43 +695,143 @@ public class MainActivity extends Activity {
                         int offset,
                         BluetoothGattCharacteristic characteristic) {
 
-                    if (powerCharacteristic.equals(characteristic)) {
-
-                        byte[] packet = buildPowerPacket(currentPower);
-
-                        if (offset > packet.length) {
-
-                            gattServer.sendResponse(
-                                    device,
-                                    requestId,
-                                    BluetoothGatt.GATT_INVALID_OFFSET,
-                                    offset,
-                                    null
-                            );
-
-                            return;
-                        }
-
-                        byte[] response =
-                                new byte[packet.length - offset];
-
-                        System.arraycopy(
-                                packet,
-                                offset,
-                                response,
-                                0,
-                                response.length
-                        );
+                    if (!CYCLING_POWER_MEASUREMENT_UUID
+                            .equals(
+                                    characteristic.getUuid()
+                            )) {
 
                         gattServer.sendResponse(
                                 device,
                                 requestId,
-                                BluetoothGatt.GATT_SUCCESS,
+                                BluetoothGatt
+                                        .GATT_REQUEST_NOT_SUPPORTED,
                                 offset,
-                                response
+                                null
                         );
+
+                        return;
                     }
+
+                    byte[] packet =
+                            buildPowerPacket(
+                                    currentPower
+                            );
+
+                    if (offset > packet.length) {
+
+                        gattServer.sendResponse(
+                                device,
+                                requestId,
+                                BluetoothGatt
+                                        .GATT_INVALID_OFFSET,
+                                offset,
+                                null
+                        );
+
+                        return;
+                    }
+
+                    byte[] response =
+                            new byte[
+                                    packet.length - offset
+                            ];
+
+                    System.arraycopy(
+                            packet,
+                            offset,
+                            response,
+                            0,
+                            response.length
+                    );
+
+                    gattServer.sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            offset,
+                            response
+                    );
                 }
+
+                /*
+                 * ------------------------------------------------
+                 * LEITURA DO CCCD
+                 * ------------------------------------------------
+                 */
+
+                @Override
+                public void onDescriptorReadRequest(
+                        BluetoothDevice device,
+                        int requestId,
+                        int offset,
+                        BluetoothGattDescriptor descriptor) {
+
+                    if (!CCCD_UUID.equals(
+                            descriptor.getUuid()
+                    )) {
+
+                        gattServer.sendResponse(
+                                device,
+                                requestId,
+                                BluetoothGatt
+                                        .GATT_REQUEST_NOT_SUPPORTED,
+                                offset,
+                                null
+                        );
+
+                        return;
+                    }
+
+                    byte[] value =
+                            notificationDevices.contains(
+                                    device.getAddress()
+                            )
+                                    ? BluetoothGattDescriptor
+                                    .ENABLE_NOTIFICATION_VALUE
+                                    : BluetoothGattDescriptor
+                                            .DISABLE_NOTIFICATION_VALUE;
+
+                    if (offset > value.length) {
+
+                        gattServer.sendResponse(
+                                device,
+                                requestId,
+                                BluetoothGatt
+                                        .GATT_INVALID_OFFSET,
+                                offset,
+                                null
+                        );
+
+                        return;
+                    }
+
+                    byte[] response =
+                            new byte[
+                                    value.length - offset
+                            ];
+
+                    System.arraycopy(
+                            value,
+                            offset,
+                            response,
+                            0,
+                            response.length
+                    );
+
+                    gattServer.sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            offset,
+                            response
+                    );
+                }
+
+                /*
+                 * ------------------------------------------------
+                 * ESCRITA DO CCCD
+                 * ------------------------------------------------
+                 */
 
                 @Override
                 public void onDescriptorWriteRequest(
@@ -493,15 +843,18 @@ public class MainActivity extends Activity {
                         int offset,
                         byte[] value) {
 
-                    if (CCCD_UUID.equals(descriptor.getUuid())) {
+                    if (!CCCD_UUID.equals(
+                            descriptor.getUuid()
+                    )) {
 
                         if (responseNeeded) {
 
                             gattServer.sendResponse(
                                     device,
                                     requestId,
-                                    BluetoothGatt.GATT_SUCCESS,
-                                    0,
+                                    BluetoothGatt
+                                            .GATT_REQUEST_NOT_SUPPORTED,
+                                    offset,
                                     null
                             );
                         }
@@ -509,34 +862,152 @@ public class MainActivity extends Activity {
                         return;
                     }
 
+                    boolean enableNotify =
+                            value != null
+                                    &&
+                                    value.length >= 2
+                                    &&
+                                    value[0] == 0x01
+                                    &&
+                                    value[1] == 0x00;
+
+                    boolean disableNotify =
+                            value != null
+                                    &&
+                                    value.length >= 2
+                                    &&
+                                    value[0] == 0x00
+                                    &&
+                                    value[1] == 0x00;
+
+                    if (enableNotify) {
+
+                        notificationDevices.add(
+                                device.getAddress()
+                        );
+
+                        cccdDescriptor.setValue(
+                                BluetoothGattDescriptor
+                                        .ENABLE_NOTIFICATION_VALUE
+                        );
+
+                        runOnUiThread(() ->
+                                statusText.setText(
+                                        "Power Notify habilitado."
+                                )
+                        );
+
+                    } else if (disableNotify) {
+
+                        notificationDevices.remove(
+                                device.getAddress()
+                        );
+
+                        cccdDescriptor.setValue(
+                                BluetoothGattDescriptor
+                                        .DISABLE_NOTIFICATION_VALUE
+                        );
+
+                        runOnUiThread(() ->
+                                statusText.setText(
+                                        "Power Notify desabilitado."
+                                )
+                        );
+                    }
+
                     if (responseNeeded) {
 
                         gattServer.sendResponse(
                                 device,
                                 requestId,
-                                BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED,
-                                0,
+                                BluetoothGatt.GATT_SUCCESS,
+                                offset,
                                 null
+                        );
+                    }
+                }
+
+                /*
+                 * ------------------------------------------------
+                 * NOTIFICAÇÃO ENVIADA
+                 * ------------------------------------------------
+                 */
+
+                @Override
+                public void onNotificationSent(
+                        BluetoothDevice device,
+                        int status) {
+
+                    if (status ==
+                            BluetoothGatt.GATT_SUCCESS) {
+
+                        runOnUiThread(() ->
+                                powerText.setText(
+                                        "Transmitindo: "
+                                                + currentPower
+                                                + " W"
+                                )
+                        );
+
+                    } else {
+
+                        runOnUiThread(() ->
+                                statusText.setText(
+                                        "Erro ao enviar Power Measurement: "
+                                                + status
+                                )
                         );
                     }
                 }
             };
 
-    private byte[] buildPowerPacket(int watts) {
+    /*
+     * ============================================================
+     * PACOTE CYCLING POWER MEASUREMENT
+     * ============================================================
+     *
+     * Flags:
+     * 0x0000
+     *
+     * Instantaneous Power:
+     * signed 16-bit little endian
+     *
+     * Total:
+     * 4 bytes
+     */
+
+    private byte[] buildPowerPacket(
+            int watts) {
 
         ByteBuffer buffer =
                 ByteBuffer
                         .allocate(4)
-                        .order(ByteOrder.LITTLE_ENDIAN);
+                        .order(
+                                ByteOrder.LITTLE_ENDIAN
+                        );
 
-        // Flags = 0x0000
-        buffer.putShort((short) 0);
+        /*
+         * Flags = 0x0000
+         */
+        buffer.putShort(
+                (short) 0
+        );
 
-        // Instantaneous Power = signed 16-bit
-        buffer.putShort((short) watts);
+        /*
+         * Instantaneous Power
+         */
+        buffer.putShort(
+                (short) watts
+        );
 
         return buffer.array();
     }
+
+    /*
+     * ============================================================
+     * ENVIO
+     * ============================================================
+     */
 
     private void sendPowerMeasurement() {
 
@@ -546,52 +1017,90 @@ public class MainActivity extends Activity {
 
         if (gattServer == null ||
                 powerCharacteristic == null) {
+
             return;
         }
 
         byte[] packet =
-                buildPowerPacket(currentPower);
+                buildPowerPacket(
+                        currentPower
+                );
 
-        powerCharacteristic.setValue(packet);
+        powerCharacteristic.setValue(
+                packet
+        );
 
+        /*
+         * Só enviamos para dispositivos que
+         * efetivamente habilitaram Notify.
+         */
         for (BluetoothDevice device :
-                new ArrayList<>(connectedDevices)) {
+                new ArrayList<>(
+                        connectedDevices
+                )) {
+
+            if (!notificationDevices.contains(
+                    device.getAddress()
+            )) {
+
+                continue;
+            }
 
             if (Build.VERSION.SDK_INT >= 33) {
 
-                gattServer.notifyCharacteristicChanged(
-                        device,
-                        powerCharacteristic,
-                        false,
-                        packet
-                );
+                gattServer
+                        .notifyCharacteristicChanged(
+                                device,
+                                powerCharacteristic,
+                                false,
+                                packet
+                        );
 
             } else {
 
-                powerCharacteristic.setValue(packet);
-
-                gattServer.notifyCharacteristicChanged(
-                        device,
-                        powerCharacteristic,
-                        false
+                powerCharacteristic.setValue(
+                        packet
                 );
+
+                gattServer
+                        .notifyCharacteristicChanged(
+                                device,
+                                powerCharacteristic,
+                                false
+                        );
             }
         }
     }
+
+    /*
+     * ============================================================
+     * INTERFACE
+     * ============================================================
+     */
 
     private void updateConnectionText() {
 
         connectionText.setText(
                 "Clientes conectados: "
                         + connectedDevices.size()
+                        + " | Notify: "
+                        + notificationDevices.size()
         );
     }
+
+    /*
+     * ============================================================
+     * PARAR
+     * ============================================================
+     */
 
     private void stopBle() {
 
         running = false;
 
-        handler.removeCallbacks(powerRunnable);
+        handler.removeCallbacks(
+                powerRunnable
+        );
 
         if (advertiser != null &&
                 hasBluetoothPermissions()) {
@@ -606,7 +1115,29 @@ public class MainActivity extends Activity {
             }
         }
 
+        closeGattServer();
+
+        connectedDevices.clear();
+        notificationDevices.clear();
+
+        updateConnectionText();
+
+        startButton.setEnabled(true);
+        stopButton.setEnabled(false);
+
+        statusText.setText(
+                "Virtual Power V2 parado."
+        );
+    }
+
+    private void closeGattServer() {
+
         if (gattServer != null) {
+
+            try {
+                gattServer.clearServices();
+            } catch (Exception ignored) {
+            }
 
             try {
                 gattServer.close();
@@ -615,18 +1146,13 @@ public class MainActivity extends Activity {
 
             gattServer = null;
         }
-
-        connectedDevices.clear();
-
-        updateConnectionText();
-
-        startButton.setEnabled(true);
-        stopButton.setEnabled(false);
-
-        statusText.setText(
-                "BLE Power Meter parado."
-        );
     }
+
+    /*
+     * ============================================================
+     * CICLO DE VIDA
+     * ============================================================
+     */
 
     @Override
     protected void onDestroy() {
@@ -635,6 +1161,12 @@ public class MainActivity extends Activity {
 
         super.onDestroy();
     }
+
+    /*
+     * ============================================================
+     * PERMISSÕES
+     * ============================================================
+     */
 
     @Override
     public void onRequestPermissionsResult(
@@ -648,18 +1180,21 @@ public class MainActivity extends Activity {
                 grantResults
         );
 
-        if (requestCode == REQUEST_BLUETOOTH) {
+        if (requestCode ==
+                REQUEST_BLUETOOTH) {
 
             if (hasBluetoothPermissions()) {
 
                 statusText.setText(
-                        "Permissões concedidas. Toque em INICIAR BLE POWER METER."
+                        "Permissões concedidas. "
+                                + "Toque em INICIAR BLE POWER METER."
                 );
 
             } else {
 
                 statusText.setText(
-                        "Permissões Bluetooth necessárias não foram concedidas."
+                        "Permissões Bluetooth necessárias "
+                                + "não foram concedidas."
                 );
             }
         }
