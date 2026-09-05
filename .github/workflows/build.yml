@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Baixar código do repositório
         uses: actions/checkout@v4
 
@@ -25,32 +24,23 @@ jobs:
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Instalar Android SDK 35
+      - name: Instalar Android SDK e Licenças
         run: |
+          sdkmanager --version
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Configurar Gradle 8.7
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
 
-      - name: Compilar APK Debug
-        run: gradle assembleDebug --no-daemon
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Tornar o Gradle Wrapper executável
+        run: chmod +x ./gradlew
 
-      - name: Verificar APK
-        run: |
-          ls -lh app/build/outputs/apk/debug/
-          test -f app/build/outputs/apk/debug/app-debug.apk
+      - name: Compilar APK (Debug)
+        run: ./gradlew assembleDebug
 
-      - name: Disponibilizar APK
+      - name: Salvar APK Gerado
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualPowerV1-APK
+          name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          
