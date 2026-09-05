@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Virtual Power V1"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="BLE Cycling Power GATT Server"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Inicializando..."
+            android:textSize="17sp"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/connectionText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Clientes conectados: 0"
+            android:textSize="17sp"
+            android:layout_marginBottom="18dp" />
+
+        <TextView
+            android:id="@+id/powerText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Potência transmitida: 200 W"
+            android:textSize="22sp"
+            android:gravity="center"
+            android:layout_marginBottom="12dp" />
+
+        <EditText
+            android:id="@+id/powerInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Potência em watts"
+            android:inputType="numberSigned"
+            android:gravity="center"
+            android:text="200"
+            android:textSize="22sp"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="APLICAR POTÊNCIA"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="INICIAR BLE POWER METER"
+            android:layout_marginBottom="10dp" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PARAR"
+            android:enabled="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="&#10;BLE Cycling Power Service: 0x1818&#10;Cycling Power Measurement: 0x2A63&#10;Atualização: 1 segundo&#10;&#10;Esta V1 transmite potência fixa.&#10;SmartSpin2k será integrado posteriormente."
+            android:textSize="15sp"
+            android:layout_marginTop="24dp" />
+
+    </LinearLayout>
+
+</ScrollView>
