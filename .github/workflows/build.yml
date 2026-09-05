@@ -45,15 +45,63 @@ jobs:
         run: |
           gradle clean assembleDebug --stacktrace --no-daemon
 
-      - name: Verificar APK
+      - name: Verificar APK detalhadamente
         run: |
-          echo "Arquivos gerados:"
-          find app/build/outputs -type f -maxdepth 5
+          echo "======================================"
+          echo "ARQUIVO APK"
+          echo "======================================"
+
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+          echo ""
+          echo "======================================"
+          echo "TAMANHO EM BYTES"
+          echo "======================================"
+
+          stat -c%s app/build/outputs/apk/debug/app-debug.apk
+
+          echo ""
+          echo "======================================"
+          echo "CONTEUDO DO APK"
+          echo "======================================"
+
+          unzip -l app/build/outputs/apk/debug/app-debug.apk
+
+          echo ""
+          echo "======================================"
+          echo "CLASSES DEX"
+          echo "======================================"
+
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E "classes.*\.dex" || true
+
+          echo ""
+          echo "======================================"
+          echo "ANDROID MANIFEST"
+          echo "======================================"
+
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep AndroidManifest.xml || true
+
+          echo ""
+          echo "======================================"
+          echo "RECURSOS"
+          echo "======================================"
+
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep resources.arsc || true
+
+          echo ""
+          echo "======================================"
+          echo "TESTE FINAL"
+          echo "======================================"
+
           test -f app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+          echo ""
+          echo "APK GERADO COM SUCESSO"
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualPowerV1-APK
+          name: VirtualPowerV1-debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
