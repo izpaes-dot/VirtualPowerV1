@@ -27,6 +27,7 @@ jobs:
 
       - name: Instalar Android SDK 35
         run: |
+          yes | sdkmanager --licenses || true
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
