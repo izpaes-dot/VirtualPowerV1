@@ -39,6 +39,8 @@ jobs:
 
       - name: Compilar APK Debug
         run: gradle assembleDebug --no-daemon
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Verificar APK
         run: |
@@ -51,3 +53,4 @@ jobs:
           name: VirtualPowerV1-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          
